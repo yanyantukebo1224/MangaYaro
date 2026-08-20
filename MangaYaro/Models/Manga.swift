@@ -9,7 +9,7 @@ public struct Manga: Identifiable, Hashable, Codable {
     public let coverImageName: String
     public let summary: String
     public let tags: [String]
-    public let chapters: [Chapter]
+    public var chapters: [Chapter] // varに変更
     public var lastReadChapterId: String?
     public var lastReadPageIndex: Int?
     public var isFavorite: Bool
