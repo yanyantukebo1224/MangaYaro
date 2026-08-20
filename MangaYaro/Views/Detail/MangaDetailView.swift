@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// MangaDex連動の作品詳細画面（チャプターフェッチ＆実読み込み起動）
+/// 日本人向け・日本語チャプター最優先の作品詳細画面
 public struct MangaDetailView: View {
     @State public var manga: Manga
     @Environment(\.dismiss) private var dismiss
@@ -16,7 +16,6 @@ public struct MangaDetailView: View {
     
     public var body: some View {
         ZStack {
-            // 背景グラデーション
             ColorExtractor.themeGradient(for: manga.title)
                 .ignoresSafeArea()
             
@@ -27,21 +26,24 @@ public struct MangaDetailView: View {
                     if isLoadingPages {
                         HStack(spacing: 8) {
                             ProgressView().tint(.white)
-                            Text("MangaDexからページデータを準備中...")
-                                .font(.caption)
+                            Text("日本語ページデータを準備中...")
+                                .font(.caption.weight(.bold))
                                 .foregroundColor(.white)
                         }
-                        .padding(12)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
                         .background(Capsule().fill(Material.ultraThinMaterial))
                     }
                     
-                    if let firstChapter = chapters.first {
+                    let displayChapters = chapters.isEmpty ? manga.chapters : chapters
+                    
+                    if let firstChapter = displayChapters.first {
                         primaryActionButton(chapter: firstChapter)
                     }
                     
                     summarySection
                     
-                    chapterListSection
+                    chapterListSection(displayChapters: displayChapters)
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 16)
@@ -58,6 +60,11 @@ public struct MangaDetailView: View {
     }
     
     private func loadChapters() async {
+        if !manga.chapters.isEmpty {
+            self.chapters = manga.chapters
+            return
+        }
+        
         isLoadingChapters = true
         let fetched = await MockDataService.shared.fetchChapters(for: manga.id)
         self.chapters = fetched
@@ -66,11 +73,15 @@ public struct MangaDetailView: View {
     }
     
     private func openChapterForReading(_ chapter: Chapter) {
+        if !chapter.pages.isEmpty {
+            selectedChapterForReading = chapter
+            return
+        }
+        
         Task {
             isLoadingPages = true
             let pages = await MockDataService.shared.fetchPages(for: chapter.id)
-            var fullChapter = chapter
-            fullChapter = Chapter(
+            let fullChapter = Chapter(
                 id: chapter.id,
                 chapterNumber: chapter.chapterNumber,
                 title: chapter.title,
@@ -128,7 +139,7 @@ public struct MangaDetailView: View {
         }) {
             HStack {
                 Image(systemName: "play.fill")
-                Text("読む (\(chapter.title))")
+                Text("日本語で読む (\(chapter.title))")
                     .fontWeight(.bold)
             }
             .frame(maxWidth: .infinity)
@@ -167,10 +178,10 @@ public struct MangaDetailView: View {
         )
     }
     
-    private var chapterListSection: some View {
+    private func chapterListSection(displayChapters: [Chapter]) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Text("エピソード List (\(chapters.count))")
+                Text("日本語エピソード一覧 (\(displayChapters.count))")
                     .font(.headline)
                     .foregroundColor(.white)
                 Spacer()
@@ -179,39 +190,32 @@ public struct MangaDetailView: View {
                 }
             }
             
-            if chapters.isEmpty && !isLoadingChapters {
-                Text("利用可能な日本語/英語のチャプターがありません")
-                    .font(.caption)
-                    .foregroundColor(.gray)
-                    .padding(.vertical, 20)
-            } else {
-                VStack(spacing: 8) {
-                    ForEach(chapters) { chapter in
-                        Button(action: {
-                            openChapterForReading(chapter)
-                        }) {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(chapter.title)
-                                        .font(.subheadline.weight(.medium))
-                                        .foregroundColor(chapter.isRead ? .white.opacity(0.6) : .white)
-                                    
-                                    Text("\(chapter.pageCount) ページ (MangaDex)")
-                                        .font(.caption2)
-                                        .foregroundColor(.white.opacity(0.4))
-                                }
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.caption)
+            VStack(spacing: 8) {
+                ForEach(displayChapters) { chapter in
+                    Button(action: {
+                        openChapterForReading(chapter)
+                    }) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(chapter.title)
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundColor(chapter.isRead ? .white.opacity(0.6) : .white)
+                                
+                                Text("\(chapter.pageCount) ページ (日本語対応)")
+                                    .font(.caption2)
                                     .foregroundColor(.white.opacity(0.4))
                             }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
-                            .background(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(Color.white.opacity(0.06))
-                            )
+                            Spacer()
+                            Image(systemName: "play.circle.fill")
+                                .font(.title3)
+                                .foregroundColor(.white.opacity(0.8))
                         }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color.white.opacity(0.06))
+                        )
                     }
                 }
             }
