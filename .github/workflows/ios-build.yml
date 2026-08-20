@@ -28,21 +28,19 @@ jobs:
             -scheme MangaYaro \
             -sdk iphoneos \
             -configuration Release \
+            -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             clean build
 
-      - name: Package App Bundle
+      - name: Verify Build Artifacts
         run: |
-          mkdir -p build/Artifacts
-          if [ -d "build/Release-iphoneos/MangaYaro.app" ]; then
-            cp -r build/Release-iphoneos/MangaYaro.app build/Artifacts/
-          fi
+          ls -la build/Build/Products/Release-iphoneos/
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: MangaYaro-iOS-Build
-          path: build/Release-iphoneos/
-          if-no-files-found: ignore
+          name: MangaYaro-iOS-App
+          path: build/Build/Products/Release-iphoneos/
+          if-no-files-found: error
