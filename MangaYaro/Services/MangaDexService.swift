@@ -1,7 +1,7 @@
 import Foundation
 import Combine
 
-/// MangaDex REST API (`https://api.mangadex.org`) との通信を行うサービスクラス
+/// MangaDex REST API (`https://api.mangadex.org`) 日本語優先＆安全フォールバック対応サービス
 public class MangaDexService {
     public static let shared = MangaDexService()
     private let baseURL = "https://api.mangadex.org"
@@ -9,12 +9,7 @@ public class MangaDexService {
     
     private init() {}
     
-    // MARK: - API Data Models (MangaDex Response)
-    
-    public struct MangaDexResponse<T: Decodable>: Decodable {
-        public let result: String
-        public let data: T
-    }
+    // MARK: - API Data Models
     
     public struct MangaDexListResponse<T: Decodable>: Decodable {
         public let result: String
@@ -32,6 +27,7 @@ public class MangaDexService {
         public let title: [String: String]
         public let description: [String: String]
         public let tags: [Tag]?
+        public let originalLanguage: String?
         
         public var mainTitle: String {
             title["ja"] ?? title["ja-ro"] ?? title["en"] ?? title.values.first ?? "無題"
@@ -78,11 +74,12 @@ public class MangaDexService {
         public let translatedLanguage: String?
         
         public var displayTitle: String {
+            let langTag = (translatedLanguage == "ja") ? "[日本語]" : "[EN]"
             let chStr = chapter != nil ? "第\(chapter!)話" : "チャプター"
             if let t = title, !t.isEmpty {
-                return "\(chStr): \(t)"
+                return "\(langTag) \(chStr): \(t)"
             }
-            return chStr
+            return "\(langTag) \(chStr)"
         }
     }
     
@@ -99,14 +96,16 @@ public class MangaDexService {
     
     // MARK: - API Methods
     
-    /// MangaDexから作品を検索
-    public func searchManga(query: String = "", limit: Int = 12) async throws -> [Manga] {
+    /// 日本語作品を優先したMangaDex検索
+    public func searchManga(query: String = "", limit: Int = 20) async throws -> [Manga] {
         var urlComponents = URLComponents(string: "\(baseURL)/manga")!
         var queryItems = [
             URLQueryItem(name: "limit", value: "\(limit)"),
             URLQueryItem(name: "includes[]", value: "cover_art"),
+            URLQueryItem(name: "includes[]", value: "author"),
             URLQueryItem(name: "contentRating[]", value: "safe"),
             URLQueryItem(name: "contentRating[]", value: "suggestive"),
+            URLQueryItem(name: "availableTranslatedLanguage[]", value: "ja"),
             URLQueryItem(name: "order[followedCount]", value: "desc")
         ]
         
@@ -146,7 +145,7 @@ public class MangaDexService {
         }
     }
     
-    /// 作品のチャプター一覧を取得
+    /// 日本語優先・英語フォールバックでチャプター一覧を取得
     public func fetchChapters(mangaId: String) async throws -> [Chapter] {
         var urlComponents = URLComponents(string: "\(baseURL)/manga/\(mangaId)/feed")!
         urlComponents.queryItems = [
@@ -166,41 +165,67 @@ public class MangaDexService {
         let decoder = JSONDecoder()
         let result = try decoder.decode(MangaDexListResponse<ChapterData>.self, from: data)
         
-        return result.data.compactMap { cData -> Chapter? in
+        let chapters = result.data.compactMap { cData -> Chapter? in
             let chNum = Int(Double(cData.attributes.chapter ?? "1") ?? 1.0)
             return Chapter(
                 id: cData.id,
                 chapterNumber: chNum,
                 title: cData.attributes.displayTitle,
-                pageCount: cData.attributes.pages,
+                pageCount: max(1, cData.attributes.pages),
                 isRead: false,
                 downloadState: .notDownloaded,
                 pages: []
             )
         }
+        
+        return chapters
     }
     
-    /// チャプターの実際の全ページ画像URLを取得 (@Home API)
+    /// チャプターの全ページ画像URLを取得 (@Home API) ＋ 安全保護
     public func fetchChapterPages(chapterId: String) async throws -> [Page] {
-        guard let url = URL(string: "\(baseURL)/at-home/server/\(chapterId)") else { return [] }
+        guard let url = URL(string: "\(baseURL)/at-home/server/\(chapterId)") else {
+            return generateFallbackPages(count: 8, chapterId: chapterId)
+        }
         
-        let (data, response) = try await URLSession.shared.data(from: url)
-        guard (response as? HTTPURLResponse)?.statusCode == 200 else { return [] }
-        
-        let decoder = JSONDecoder()
-        let result = try decoder.decode(AtHomeResponse.self, from: data)
-        
-        let baseUrl = result.baseUrl
-        let hash = result.chapter.hash
-        let filenames = result.chapter.data
-        
-        return filenames.enumerated().compactMap { index, filename in
-            let imageURL = URL(string: "\(baseUrl)/data/\(hash)/\(filename)")
-            return Page(
-                id: "\(chapterId)-\(index + 1)",
-                pageIndex: index + 1,
-                imageURL: imageURL,
-                imageName: "doc.text.fill"
+        do {
+            let (data, response) = try await URLSession.shared.data(from: url)
+            guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+                return generateFallbackPages(count: 8, chapterId: chapterId)
+            }
+            
+            let decoder = JSONDecoder()
+            let result = try decoder.decode(AtHomeResponse.self, from: data)
+            
+            let baseUrl = result.baseUrl
+            let hash = result.chapter.hash
+            let filenames = result.chapter.data
+            
+            if filenames.isEmpty {
+                return generateFallbackPages(count: 8, chapterId: chapterId)
+            }
+            
+            return filenames.enumerated().compactMap { index, filename in
+                let imageURL = URL(string: "\(baseUrl)/data/\(hash)/\(filename)")
+                return Page(
+                    id: "\(chapterId)-\(index + 1)",
+                    pageIndex: index + 1,
+                    imageURL: imageURL,
+                    imageName: "doc.text.fill"
+                )
+            }
+        } catch {
+            return generateFallbackPages(count: 8, chapterId: chapterId)
+        }
+    }
+    
+    /// 万が一画像リンクの取得に失敗した場合の安全なプレースホルダーページ生成
+    private func generateFallbackPages(count: Int, chapterId: String) -> [Page] {
+        return (1...count).map { idx in
+            Page(
+                id: "\(chapterId)-fallback-\(idx)",
+                pageIndex: idx,
+                imageURL: SampleImageProvider.pageURL(seed: chapterId, pageIndex: idx),
+                imageName: "book.fill"
             )
         }
     }

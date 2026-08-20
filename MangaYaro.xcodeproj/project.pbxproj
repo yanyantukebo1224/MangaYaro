@@ -25,6 +25,7 @@
 		A10000102C12345600000001 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000102C12345600000001 /* MainTabView.swift */; };
 		A10000112C12345600000001 /* SampleImageProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000112C12345600000001 /* SampleImageProvider.swift */; };
 		A10000122C12345600000001 /* MangaDexService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000122C12345600000001 /* MangaDexService.swift */; };
+		A10000132C12345600000001 /* MangaSearchAggregator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000132C12345600000001 /* MangaSearchAggregator.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -47,6 +48,7 @@
 		B10000102C12345600000001 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		B10000112C12345600000001 /* SampleImageProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleImageProvider.swift; sourceTree = "<group>"; };
 		B10000122C12345600000001 /* MangaDexService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MangaDexService.swift; sourceTree = "<group>"; };
+		B10000132C12345600000001 /* MangaSearchAggregator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MangaSearchAggregator.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -98,6 +100,7 @@
 				B10000082C12345600000001 /* MockDataService.swift */,
 				B10000112C12345600000001 /* SampleImageProvider.swift */,
 				B10000122C12345600000001 /* MangaDexService.swift */,
+				B10000132C12345600000001 /* MangaSearchAggregator.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -231,6 +234,7 @@
 				A10000102C12345600000001 /* MainTabView.swift in Sources */,
 				A10000112C12345600000001 /* SampleImageProvider.swift in Sources */,
 				A10000122C12345600000001 /* MangaDexService.swift in Sources */,
+				A10000132C12345600000001 /* MangaSearchAggregator.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -340,7 +344,7 @@
 			};
 			name = Release;
 		};
-/* End XCBuildConfiguration section */
+/* End XCConfigurationList section */
 
 /* Begin XCConfigurationList section */
 		G10000012C12345600000001 /* Build configuration list for PBXNativeTarget "MangaYaro" */ = {

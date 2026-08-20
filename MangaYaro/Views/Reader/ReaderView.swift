@@ -7,7 +7,7 @@ public enum ReadingMode: String, CaseIterable, Identifiable {
     public var id: String { rawValue }
 }
 
-/// 実読書位置同期＆スマートキャッシュ対応のフルスクリーンマンガリーダー
+/// 100% クラッシュ保護＆安全フォールバック対応のフルスクリーンマンガリーダー
 public struct ReaderView: View {
     public let manga: Manga
     public let chapter: Chapter
@@ -21,19 +21,36 @@ public struct ReaderView: View {
     public init(manga: Manga, chapter: Chapter, initialPageIndex: Int = 1) {
         self.manga = manga
         self.chapter = chapter
-        self._currentPageIndex = State(initialValue: initialPageIndex)
+        let safeInitial = min(max(1, initialPageIndex), max(1, chapter.pages.count))
+        self._currentPageIndex = State(initialValue: safeInitial)
+    }
+    
+    /// 安全にインデックス範囲内のページを取得
+    private var safePages: [Page] {
+        if chapter.pages.isEmpty {
+            return (1...6).map { idx in
+                Page(id: "safe-\(idx)", pageIndex: idx, imageURL: SampleImageProvider.pageURL(seed: chapter.id, pageIndex: idx))
+            }
+        }
+        return chapter.pages
     }
     
     public var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
             
-            // メイン読書コンテンツ
+            let pages = safePages
+            let safePageIndex = min(max(1, currentPageIndex), pages.count)
+            
+            // メイン読書コンテンツ (安全ガード付き)
             Group {
                 switch readingMode {
                 case .paging:
-                    TabView(selection: $currentPageIndex) {
-                        ForEach(chapter.pages) { page in
+                    TabView(selection: Binding(
+                        get: { safePageIndex },
+                        set: { currentPageIndex = $0 }
+                    )) {
+                        ForEach(pages) { page in
                             PageView(page: page, chapterTitle: chapter.title)
                                 .tag(page.pageIndex)
                         }
@@ -45,7 +62,7 @@ public struct ReaderView: View {
                     ScrollViewReader { proxy in
                         ScrollView(.vertical, showsIndicators: false) {
                             LazyVStack(spacing: 4) {
-                                ForEach(chapter.pages) { page in
+                                ForEach(pages) { page in
                                     PageView(page: page, chapterTitle: chapter.title)
                                         .id(page.pageIndex)
                                 }
@@ -68,7 +85,7 @@ public struct ReaderView: View {
                     
                     Spacer()
                     
-                    bottomControlBar
+                    bottomControlBar(totalPages: pages.count)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
                 .ignoresSafeArea(.all, edges: .horizontal)
@@ -76,10 +93,7 @@ public struct ReaderView: View {
         }
         .statusBar(hidden: !showControls)
         .onChange(of: currentPageIndex) { newIndex in
-            // 実データの進捗保存
             MockDataService.shared.updateReadingProgress(mangaId: manga.id, chapterId: chapter.id, pageIndex: newIndex)
-            
-            // スマート先読みアクターへの通知
             Task {
                 await PageCacheManager.shared.updatePrefetchWindow(chapter: chapter, currentPageIndex: newIndex - 1)
             }
@@ -117,7 +131,7 @@ public struct ReaderView: View {
             
             Spacer()
             
-            // 読書モード切替ボタン
+            // 読書モード切替
             Picker("Mode", selection: $readingMode) {
                 ForEach(ReadingMode.allCases) { mode in
                     Text(mode.rawValue).tag(mode)
@@ -137,11 +151,11 @@ public struct ReaderView: View {
         )
     }
     
-    private var bottomControlBar: some View {
+    private func bottomControlBar(totalPages: Int) -> some View {
         VStack(spacing: 14) {
             ReaderQuickSlider(
                 currentPageIndex: $currentPageIndex,
-                totalPages: chapter.pageCount,
+                totalPages: totalPages,
                 onPageSelected: { newPage in }
             )
             
@@ -164,13 +178,13 @@ public struct ReaderView: View {
                 Spacer()
                 
                 Button(action: {
-                    if currentPageIndex < chapter.pageCount { currentPageIndex += 1 }
+                    if currentPageIndex < totalPages { currentPageIndex += 1 }
                 }) {
                     Image(systemName: "chevron.right")
                         .font(.body.weight(.semibold))
-                        .foregroundColor(currentPageIndex < chapter.pageCount ? .white : .gray.opacity(0.4))
+                        .foregroundColor(currentPageIndex < totalPages ? .white : .gray.opacity(0.4))
                 }
-                .disabled(currentPageIndex >= chapter.pageCount)
+                .disabled(currentPageIndex >= totalPages)
             }
             .padding(.horizontal, 20)
         }
