@@ -24,6 +24,7 @@
 		A100000F2C12345600000001 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000F2C12345600000001 /* SettingsView.swift */; };
 		A10000102C12345600000001 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000102C12345600000001 /* MainTabView.swift */; };
 		A10000112C12345600000001 /* SampleImageProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000112C12345600000001 /* SampleImageProvider.swift */; };
+		A10000122C12345600000001 /* MangaDexService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000122C12345600000001 /* MangaDexService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -45,6 +46,7 @@
 		B100000F2C12345600000001 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		B10000102C12345600000001 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		B10000112C12345600000001 /* SampleImageProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleImageProvider.swift; sourceTree = "<group>"; };
+		B10000122C12345600000001 /* MangaDexService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MangaDexService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -95,6 +97,7 @@
 				B10000072C12345600000001 /* ColorExtractor.swift */,
 				B10000082C12345600000001 /* MockDataService.swift */,
 				B10000112C12345600000001 /* SampleImageProvider.swift */,
+				B10000122C12345600000001 /* MangaDexService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -227,6 +230,7 @@
 				A100000F2C12345600000001 /* SettingsView.swift in Sources */,
 				A10000102C12345600000001 /* MainTabView.swift in Sources */,
 				A10000112C12345600000001 /* SampleImageProvider.swift in Sources */,
+				A10000122C12345600000001 /* MangaDexService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

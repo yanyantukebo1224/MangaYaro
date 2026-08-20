@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// リアルタイム検索＆ジャンルフィルタリングに対応した「見つける」画面
+/// MangaDex APIによるリアルタイムオンライン検索に対応した「見つける」画面
 public struct DiscoverView: View {
     @ObservedObject private var dataService = MockDataService.shared
     
@@ -26,16 +26,22 @@ public struct DiscoverView: View {
                             .foregroundColor(.white)
                             .padding(.horizontal, 20)
                         
-                        // リアルタイム検索バー
+                        // リアルタイム検索バー (MangaDex API)
                         HStack {
                             Image(systemName: "magnifyingglass")
                                 .foregroundColor(.gray)
-                            TextField("作品名、作者、タグで検索", text: $searchText)
+                            TextField("MangaDexで作品名・作者を検索", text: $searchText)
                                 .foregroundColor(.white)
                                 .autocorrectionDisabled()
+                                .onChange(of: searchText) { newValue in
+                                    dataService.searchMangas(query: newValue, genre: selectedGenre)
+                                }
                             
                             if !searchText.isEmpty {
-                                Button(action: { searchText = "" }) {
+                                Button(action: {
+                                    searchText = ""
+                                    dataService.searchMangas(query: "", genre: selectedGenre)
+                                }) {
                                     Image(systemName: "xmark.circle.fill")
                                         .foregroundColor(.gray)
                                 }
@@ -55,6 +61,7 @@ public struct DiscoverView: View {
                                     Button(action: {
                                         withAnimation(.easeInOut(duration: 0.2)) {
                                             selectedGenre = genre
+                                            dataService.searchMangas(query: searchText, genre: genre)
                                         }
                                     }) {
                                         Text(genre)
@@ -72,24 +79,26 @@ public struct DiscoverView: View {
                             .padding(.horizontal, 20)
                         }
                         
-                        // 検索・絞り込み結果セクション
-                        let filteredMangas = dataService.searchMangas(query: searchText, genre: selectedGenre)
-                        
+                        // 検索結果 / トレンドセクション
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
-                                Text(searchText.isEmpty && selectedGenre == "すべて" ? "おすすめ作品" : "検索結果 (\(filteredMangas.count)件)")
+                                Text(searchText.isEmpty ? "🔥 MangaDex トレンド作品" : "検索結果 (\(dataService.searchResults.count)件)")
                                     .font(.title3.weight(.bold))
                                     .foregroundColor(.white)
                                 Spacer()
+                                if dataService.isLoading {
+                                    ProgressView()
+                                        .tint(.white)
+                                }
                             }
                             .padding(.horizontal, 20)
                             
-                            if filteredMangas.isEmpty {
+                            if dataService.searchResults.isEmpty && !dataService.isLoading {
                                 VStack(spacing: 12) {
                                     Image(systemName: "text.magnifyingglass")
                                         .font(.system(size: 40))
                                         .foregroundColor(.gray)
-                                    Text("一致する作品が見つかりませんでした")
+                                    Text("該当する作品がMangaDexで見つかりませんでした")
                                         .font(.subheadline)
                                         .foregroundColor(.gray)
                                 }
@@ -97,7 +106,7 @@ public struct DiscoverView: View {
                                 .padding(.top, 40)
                             } else {
                                 LazyVGrid(columns: columns, spacing: 20) {
-                                    ForEach(filteredMangas) { manga in
+                                    ForEach(dataService.searchResults) { manga in
                                         NavigationLink(destination: MangaDetailView(manga: manga)) {
                                             mangaCard(manga)
                                         }
@@ -117,22 +126,28 @@ public struct DiscoverView: View {
     private func mangaCard(_ manga: Manga) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             ZStack(alignment: .topTrailing) {
-                ColorExtractor.themeGradient(for: manga.title)
-                    .frame(height: 200)
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14)
-                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
-                    )
-                
-                VStack {
-                    Image(systemName: manga.coverImageName)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 44, height: 44)
-                        .foregroundColor(.white.opacity(0.85))
+                Group {
+                    if let coverURL = manga.coverImageURL {
+                        AsyncImage(url: coverURL) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .scaledToFill()
+                            default:
+                                ColorExtractor.themeGradient(for: manga.title)
+                            }
+                        }
+                    } else {
+                        ColorExtractor.themeGradient(for: manga.title)
+                    }
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(height: 220)
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                )
                 
                 // お気に入りハートボタン
                 Button(action: {
