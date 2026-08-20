@@ -1,11 +1,18 @@
 import SwiftUI
 
-/// 見つける（トレンド・検索・ジャンル）画面
+/// リアルタイム検索＆ジャンルフィルタリングに対応した「見つける」画面
 public struct DiscoverView: View {
+    @ObservedObject private var dataService = MockDataService.shared
+    
     @State private var searchText: String = ""
     @State private var selectedGenre: String = "すべて"
     
     private let genres = ["すべて", "SF・ファンタジー", "バトル", "日常・スローライフ", "Webtoon", "ホラー"]
+    
+    private let columns = [
+        GridItem(.flexible(), spacing: 16),
+        GridItem(.flexible(), spacing: 16)
+    ]
     
     public var body: some View {
         NavigationStack {
@@ -19,12 +26,20 @@ public struct DiscoverView: View {
                             .foregroundColor(.white)
                             .padding(.horizontal, 20)
                         
-                        // 検索バー
+                        // リアルタイム検索バー
                         HStack {
                             Image(systemName: "magnifyingglass")
                                 .foregroundColor(.gray)
-                            TextField("作品名、作者名、キーワードで検索", text: $searchText)
+                            TextField("作品名、作者、タグで検索", text: $searchText)
                                 .foregroundColor(.white)
+                                .autocorrectionDisabled()
+                            
+                            if !searchText.isEmpty {
+                                Button(action: { searchText = "" }) {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundColor(.gray)
+                                }
+                            }
                         }
                         .padding(12)
                         .background(
@@ -37,7 +52,11 @@ public struct DiscoverView: View {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 10) {
                                 ForEach(genres, id: \.self) { genre in
-                                    Button(action: { selectedGenre = genre }) {
+                                    Button(action: {
+                                        withAnimation(.easeInOut(duration: 0.2)) {
+                                            selectedGenre = genre
+                                        }
+                                    }) {
                                         Text(genre)
                                             .font(.subheadline.weight(selectedGenre == genre ? .bold : .regular))
                                             .padding(.horizontal, 14)
@@ -53,18 +72,34 @@ public struct DiscoverView: View {
                             .padding(.horizontal, 20)
                         }
                         
-                        // トレンドカルーセル風セクション
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("🔥 今週のトレンド作品")
-                                .font(.title3.weight(.bold))
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 20)
+                        // 検索・絞り込み結果セクション
+                        let filteredMangas = dataService.searchMangas(query: searchText, genre: selectedGenre)
+                        
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Text(searchText.isEmpty && selectedGenre == "すべて" ? "おすすめ作品" : "検索結果 (\(filteredMangas.count)件)")
+                                    .font(.title3.weight(.bold))
+                                    .foregroundColor(.white)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 20)
                             
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 16) {
-                                    ForEach(MockDataService.shared.sampleMangas) { manga in
+                            if filteredMangas.isEmpty {
+                                VStack(spacing: 12) {
+                                    Image(systemName: "text.magnifyingglass")
+                                        .font(.system(size: 40))
+                                        .foregroundColor(.gray)
+                                    Text("一致する作品が見つかりませんでした")
+                                        .font(.subheadline)
+                                        .foregroundColor(.gray)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.top, 40)
+                            } else {
+                                LazyVGrid(columns: columns, spacing: 20) {
+                                    ForEach(filteredMangas) { manga in
                                         NavigationLink(destination: MangaDetailView(manga: manga)) {
-                                            trendCard(manga)
+                                            mangaCard(manga)
                                         }
                                     }
                                 }
@@ -79,25 +114,51 @@ public struct DiscoverView: View {
         }
     }
     
-    private func trendCard(_ manga: Manga) -> some View {
+    private func mangaCard(_ manga: Manga) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            ZStack {
+            ZStack(alignment: .topTrailing) {
                 ColorExtractor.themeGradient(for: manga.title)
-                    .frame(width: 140, height: 190)
+                    .frame(height: 200)
                     .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                    )
                 
-                Image(systemName: manga.coverImageName)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 40, height: 40)
-                    .foregroundColor(.white.opacity(0.8))
+                VStack {
+                    Image(systemName: manga.coverImageName)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 44, height: 44)
+                        .foregroundColor(.white.opacity(0.85))
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                
+                // お気に入りハートボタン
+                Button(action: {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                        dataService.toggleFavorite(mangaId: manga.id)
+                    }
+                }) {
+                    Image(systemName: manga.isFavorite ? "heart.fill" : "heart")
+                        .foregroundColor(manga.isFavorite ? .red : .white.opacity(0.8))
+                        .padding(8)
+                        .background(Circle().fill(Material.ultraThinMaterial))
+                        .padding(8)
+                }
             }
             
-            Text(manga.title)
-                .font(.caption.weight(.bold))
-                .foregroundColor(.white)
-                .lineLimit(1)
-                .frame(width: 140, alignment: .leading)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(manga.title)
+                    .font(.caption.weight(.bold))
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+                
+                Text(manga.author)
+                    .font(.caption2)
+                    .foregroundColor(.white.opacity(0.6))
+                    .lineLimit(1)
+            }
         }
     }
 }

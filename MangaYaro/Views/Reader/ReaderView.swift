@@ -7,7 +7,7 @@ public enum ReadingMode: String, CaseIterable, Identifiable {
     public var id: String { rawValue }
 }
 
-/// 没入型完全フルスクリーンマンガリーダー
+/// 実読書位置同期＆スマートキャッシュ対応のフルスクリーンマンガリーダー
 public struct ReaderView: View {
     public let manga: Manga
     public let chapter: Chapter
@@ -17,7 +17,6 @@ public struct ReaderView: View {
     @State private var currentPageIndex: Int = 1
     @State private var readingMode: ReadingMode = .paging
     @State private var showControls: Bool = true
-    @State private var isStatusBarHidden: Bool = true
     
     public init(manga: Manga, chapter: Chapter, initialPageIndex: Int = 1) {
         self.manga = manga
@@ -29,7 +28,7 @@ public struct ReaderView: View {
         ZStack {
             Color.black.ignoresSafeArea()
             
-            // メインコンテンツエリア (読書ビュー)
+            // メイン読書コンテンツ
             Group {
                 switch readingMode {
                 case .paging:
@@ -64,13 +63,11 @@ public struct ReaderView: View {
             // オーバーレイ UI: Liquid Glass コントロールバー
             if showControls {
                 VStack {
-                    // Top Bar (すりガラス)
                     topControlBar
                         .transition(.move(edge: .top).combined(with: .opacity))
                     
                     Spacer()
                     
-                    // Bottom Bar (すりガラス & Quick Slider)
                     bottomControlBar
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
@@ -79,11 +76,16 @@ public struct ReaderView: View {
         }
         .statusBar(hidden: !showControls)
         .onChange(of: currentPageIndex) { newIndex in
+            // 実データの進捗保存
+            MockDataService.shared.updateReadingProgress(mangaId: manga.id, chapterId: chapter.id, pageIndex: newIndex)
+            
+            // スマート先読みアクターへの通知
             Task {
                 await PageCacheManager.shared.updatePrefetchWindow(chapter: chapter, currentPageIndex: newIndex - 1)
             }
         }
         .onAppear {
+            MockDataService.shared.updateReadingProgress(mangaId: manga.id, chapterId: chapter.id, pageIndex: currentPageIndex)
             Task {
                 await PageCacheManager.shared.updatePrefetchWindow(chapter: chapter, currentPageIndex: currentPageIndex - 1)
             }
@@ -126,9 +128,7 @@ public struct ReaderView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(
-            Material.ultraThinMaterial
-        )
+        .background(Material.ultraThinMaterial)
         .overlay(
             Rectangle()
                 .frame(height: 0.5)
@@ -142,9 +142,7 @@ public struct ReaderView: View {
             ReaderQuickSlider(
                 currentPageIndex: $currentPageIndex,
                 totalPages: chapter.pageCount,
-                onPageSelected: { newPage in
-                    // ページジャンプ時の処理
-                }
+                onPageSelected: { newPage in }
             )
             
             HStack {
@@ -159,7 +157,7 @@ public struct ReaderView: View {
                 
                 Spacer()
                 
-                Text("先読みキャッシュ: アクティブ (3 Pages Window)")
+                Text("スマートキャッシュ: アクティブ (3 Pages Window)")
                     .font(.caption2)
                     .foregroundColor(.white.opacity(0.5))
                 
@@ -177,9 +175,7 @@ public struct ReaderView: View {
             .padding(.horizontal, 20)
         }
         .padding(.vertical, 14)
-        .background(
-            Material.ultraThinMaterial
-        )
+        .background(Material.ultraThinMaterial)
         .overlay(
             Rectangle()
                 .frame(height: 0.5)

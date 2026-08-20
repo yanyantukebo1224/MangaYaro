@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// ホーム・ライブラリ画面（ポスターグリッド & 進捗バー）
+/// 動的進捗更新 & お気に入りフィルター対応のライブラリ画面
 public struct LibraryView: View {
-    @State private var mangas: [Manga] = MockDataService.shared.sampleMangas
+    @ObservedObject private var dataService = MockDataService.shared
+    @State private var filterSegment: Int = 0 // 0: お気に入り, 1: 読書履歴・すべて
     
     private let columns = [
         GridItem(.flexible(), spacing: 16),
@@ -21,14 +22,39 @@ public struct LibraryView: View {
                             .foregroundColor(.white)
                             .padding(.horizontal, 20)
                         
-                        LazyVGrid(columns: columns, spacing: 20) {
-                            ForEach(mangas) { manga in
-                                NavigationLink(destination: MangaDetailView(manga: manga)) {
-                                    mangaPosterCard(manga)
+                        // フィルターセグメント
+                        Picker("Filter", selection: $filterSegment) {
+                            Text("お気に入り").tag(0)
+                            Text("すべての作品").tag(1)
+                        }
+                        .pickerStyle(.segmented)
+                        .padding(.horizontal, 20)
+                        
+                        let displayMangas = filterSegment == 0
+                            ? dataService.mangas.filter { $0.isFavorite }
+                            : dataService.mangas
+                        
+                        if displayMangas.isEmpty {
+                            VStack(spacing: 12) {
+                                Image(systemName: "books.vertical")
+                                    .font(.system(size: 44))
+                                    .foregroundColor(.gray)
+                                Text(filterSegment == 0 ? "お気に入りの作品はありません" : "ライブラリに作品がありません")
+                                    .font(.subheadline)
+                                    .foregroundColor(.gray)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, 50)
+                        } else {
+                            LazyVGrid(columns: columns, spacing: 20) {
+                                ForEach(displayMangas) { manga in
+                                    NavigationLink(destination: MangaDetailView(manga: manga)) {
+                                        mangaPosterCard(manga)
+                                    }
                                 }
                             }
+                            .padding(.horizontal, 20)
                         }
-                        .padding(.horizontal, 20)
                     }
                     .padding(.top, 16)
                     .padding(.bottom, 30)
@@ -39,7 +65,6 @@ public struct LibraryView: View {
     
     private func mangaPosterCard(_ manga: Manga) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            // カバーポスターカード
             ZStack(alignment: .bottomLeading) {
                 ColorExtractor.themeGradient(for: manga.title)
                     .frame(height: 220)
@@ -58,20 +83,19 @@ public struct LibraryView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 
-                // お気に入りハートバッジ
-                if manga.isFavorite {
-                    VStack {
-                        HStack {
-                            Spacer()
-                            Image(systemName: "heart.fill")
-                                .foregroundColor(.red)
-                                .padding(8)
-                                .background(Circle().fill(Material.ultraThinMaterial))
-                                .padding(8)
-                        }
-                        Spacer()
+                // お気に入りハート
+                Button(action: {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                        dataService.toggleFavorite(mangaId: manga.id)
                     }
+                }) {
+                    Image(systemName: manga.isFavorite ? "heart.fill" : "heart")
+                        .foregroundColor(manga.isFavorite ? .red : .white.opacity(0.8))
+                        .padding(8)
+                        .background(Circle().fill(Material.ultraThinMaterial))
+                        .padding(8)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                 
                 // 読書進捗バー（下部オーバーレイ）
                 VStack(alignment: .leading, spacing: 4) {
@@ -87,7 +111,7 @@ public struct LibraryView: View {
                                 .fill(Color.white.opacity(0.2))
                             Capsule()
                                 .fill(Color.accentColor)
-                                .frame(width: p.size.width * CGFloat(manga.overallProgress))
+                                .frame(width: max(4, p.size.width * CGFloat(manga.overallProgress)))
                         }
                     }
                     .frame(height: 4)
@@ -100,12 +124,16 @@ public struct LibraryView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 14))
             }
             
-            // 進捗状況テキスト
             HStack {
                 Text("\(Int(manga.overallProgress * 100))% 読了")
                     .font(.caption2.weight(.medium))
                     .foregroundColor(.white.opacity(0.6))
                 Spacer()
+                if let lastPage = manga.lastReadPageIndex {
+                    Text("P.\(lastPage)")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundColor(.accentColor)
+                }
             }
         }
     }
